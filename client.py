@@ -34,7 +34,7 @@ from cfgs.config import cfg
 from actions import *
 
 class ClientAccept:
-    def __init__(self, host='192.168.1.124', port=8117 ,client_host='192.168.1.108', client_port=8118, video_file=None):
+    def __init__(self, host='192.168.1.124', port=8117 ,client_host='192.168.1.108', client_port=8119, video_file=None):
         print(os.getpid())
         self.host = host
         self.port= port
@@ -49,7 +49,7 @@ class ClientAccept:
         self.audio_thread = AudioThread()
         self.audio_thread.start()
         self.action = BackSquat()
-        self.socket_client((self.s_addr_port))
+        self.socket_client()
         # self.__init_gui() 
 
     def __init_gui(self):
@@ -84,32 +84,13 @@ class ClientAccept:
         client_thread.start()
         # result_thread.start()
 
-    def socket_client(self, s_addr_port):
+    def socket_client(self):
 
 
         client_server = threading.Thread(target=self.receive_data)
         client_server.start()
 
         # self.client_server_start()##start client server for receive data from server
-        
-        try:
-            self.server =socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
-        except Exception as e:
-            print("Error create socket")
-            # sys.exit()
-            # quit()
-
-        try:
-            # socket.setdefaulttimeout(5)
-            self.server.connect(s_addr_port)
-        except socket.error as e:
-            print("Error connecting to server: %s" % e )
-            sys.exit() 
-        except socket.timeout:
-            print("connecting to server timeout")
-            sys.exit()
-        print("client connected the server %s, %d" % (self.host, self.port))
 
         self.__init_gui()
 
@@ -126,6 +107,7 @@ class ClientAccept:
         except socket.error as e:
             print("Bind failed")
             print(e)
+            
             sys.exit()
         self.s.listen(5)
         print("client server started...")
@@ -133,10 +115,12 @@ class ClientAccept:
 
         conn, addr = self.s.accept()
         print("client server  connection from {0}".format(addr))
-
+        idx = 0
         print(os.getpid())
         while 1:
+
             print(os.getpid())
+
             buf = b""
             while 1:
                 tem_buf = conn.recv(self.bufsize)
@@ -159,14 +143,16 @@ class ClientAccept:
                     self.audio_thread.put(tip)
 
             result_img = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
-            # print(result_img.shape)
+            print("----------", result_img.shape)
+            cv2.imwrite(os.path.join("test",str(idx)+"_"+str(img_id)+".jpg"), result_img)
+            idx+=1
             self.canvas.add(result_img)
             if text != "" and text != None:
                 self.lb_status.insert(1.0, '\n')
                 self.lb_status.insert(1.0, text)
                 self.lb_status.update_idletasks()
             # print(text)
-            self.window.update_idletasks()  #快速重画屏幕  
+            # self.window.update_idletasks()  #快速重画屏幕  
             self.window.update()
 
         print("Client connection interrupted: {0}".format(addr))
@@ -183,6 +169,24 @@ class ClientAccept:
 
     ##20180512.mp4
     def send_to_server(self, video_file=None):
+        try:
+            self.server =socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+        except Exception as e:
+            print("Error create socket")
+            # sys.exit()
+            # quit()
+
+        try:
+            # socket.setdefaulttimeout(5)
+            self.server.connect(self.s_addr_port)
+        except socket.error as e:
+            print("Error connecting to server: %s" % e )
+            sys.exit() 
+        except socket.timeout:
+            print("connecting to server timeout")
+            sys.exit()
+        print("client connected the server %s, %d" % (self.host, self.port))
         print("pid",os.getpid())
         # print(video_file)
         from_camera = video_file == None
@@ -230,7 +234,9 @@ class ClientAccept:
             self.server.send(data2)
 
             print("%s frame send over!" % (frame_idx))
-
+            if frame_idx >= 1e+6:
+                frame_idx = 0
+            frame_idx +=1
         self.server.close()
         # cv2.destroyAllWindows()
 
