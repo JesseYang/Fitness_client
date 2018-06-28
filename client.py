@@ -34,7 +34,7 @@ from cfgs.config import cfg
 from actions import *
 
 class ClientAccept:
-    def __init__(self, host='192.168.1.124', port=8117 ,client_host='192.168.1.108', client_port=8119, video_file=None):
+    def __init__(self, host='192.168.1.124', port=8117 ,client_host='192.168.1.108', client_port=8120, video_file=None):
         print(os.getpid())
         self.host = host
         self.port= port
@@ -77,7 +77,7 @@ class ClientAccept:
         self.btn_next_frame3 = tk.Button(self.fm_status, text='New', command = None)
         self.btn_next_frame3.grid(row = 1, column=0, padx=10, pady=20)
         self.window.resizable(False, False)
-        
+       
     def _start(self):
 
         client_thread = threading.Thread(target=self.send_to_server)
@@ -86,18 +86,15 @@ class ClientAccept:
 
     def socket_client(self):
 
-
         client_server = threading.Thread(target=self.receive_data)
         client_server.start()
 
-        # self.client_server_start()##start client server for receive data from server
-
+    
         self.__init_gui()
-
+        
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.window.mainloop()
-
-  
+       
 
     def receive_data(self):
         self.s =socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -108,7 +105,6 @@ class ClientAccept:
             print("Bind failed")
             print(e)
             
-            sys.exit()
         self.s.listen(5)
         print("client server started...")
         print("pid:",os.getpid())
@@ -117,25 +113,21 @@ class ClientAccept:
         print("client server  connection from {0}".format(addr))
         idx = 0
         print(os.getpid())
-        while 1:
-
-            print(os.getpid())
-
+        while True:
             buf = b""
-            while 1:
+            while True:
                 tem_buf = conn.recv(self.bufsize)
                 buf += tem_buf
                 if len(tem_buf) != self.bufsize :
                     break
      
             img_id, result_peak = pickle.loads(buf)
+            # self.result_queue.put([img_id, result_peak[0]])
             if img_id == -1:
-                self.result_queue.put([addr, -1, 0])
+                # self.result_queue.put([addr, -1, 0])
                 conn.close()
                 break
-            print("============client server recevied data from server=================")
-            print(img_id, result_peak[0])
-
+            print("============client server recevied data from server frame_id:%d  pid:%d" % (img_id, os.getpid()))
             tips, text, result_img = self.action.push_new_frame(result_peak[0], cv2.resize(self.img_dic[img_id], (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_CUBIC))
 
             if self.audio_thread.qsize() == 0 and self.audio_thread.is_playing == False:
@@ -144,9 +136,10 @@ class ClientAccept:
 
             result_img = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
             print("----------", result_img.shape)
-            cv2.imwrite(os.path.join("test",str(idx)+"_"+str(img_id)+".jpg"), result_img)
+            
             idx+=1
             self.canvas.add(result_img)
+            cv2.imwrite(os.path.join("test",str(idx)+"_"+str(img_id)+".jpg"), result_img)
             if text != "" and text != None:
                 self.lb_status.insert(1.0, '\n')
                 self.lb_status.insert(1.0, text)
@@ -154,7 +147,7 @@ class ClientAccept:
             # print(text)
             # self.window.update_idletasks()  #快速重画屏幕  
             self.window.update()
-
+            print("-----draw over")
         print("Client connection interrupted: {0}".format(addr))
         conn.close()
         self.s.close()
@@ -174,7 +167,7 @@ class ClientAccept:
             self.server.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
         except Exception as e:
             print("Error create socket")
-            # sys.exit()
+            sys.exit()
             # quit()
 
         try:
@@ -182,7 +175,7 @@ class ClientAccept:
             self.server.connect(self.s_addr_port)
         except socket.error as e:
             print("Error connecting to server: %s" % e )
-            sys.exit() 
+            sys.exit()
         except socket.timeout:
             print("connecting to server timeout")
             sys.exit()
@@ -199,9 +192,8 @@ class ClientAccept:
             return
 
         while (True if from_camera == True else cap.isOpened()):
-            print("pid",os.getpid())
+           
             ret, frame = cap.read()
-            print(frame.shape)
             if not ret:
                 print("over")
                 self.server.send(struct.pack("l99434s", int(-1), b''))
@@ -224,22 +216,48 @@ class ClientAccept:
             img_encode = cv2.imencode('.jpg', frame)[1]
             img_code = np.array(img_encode)
             str_encode = img_code.tostring()
-            # print(str_encode)
-            print("size", str(len(str_encode)))
-
-            # pdb.set_trace()
+         
             struc_2 = "ii%ds" % len(str_encode)
             data2 = struct.pack(struc_2, len(str_encode), int(frame_idx), str_encode)
 
             self.server.send(data2)
 
-            print("%s frame send over!" % (frame_idx))
+            print("%s frame send over! pid: %d" % (frame_idx, os.getpid()))
             if frame_idx >= 1e+6:
                 frame_idx = 0
             frame_idx +=1
         self.server.close()
         # cv2.destroyAllWindows()
 
+
+
+    def show_img(self):
+        idx = 0
+        while 1:
+            print("show img----")
+            img_id, result_peak = self.result_queue.get()
+            print(img_id)
+            if img_id  == -1:
+                break
+            tips, text, result_img = self.action.push_new_frame(result_peak, cv2.resize(self.img_dic[img_id], (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_CUBIC))
+
+            if self.audio_thread.qsize() == 0 and self.audio_thread.is_playing == False:
+                for tip in tips:
+                    self.audio_thread.put(tip)
+
+            result_img = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
+            print("----------", result_img.shape)
+            cv2.imwrite(os.path.join("test",str(idx)+"_"+str(img_id)+".jpg"), result_img)
+            idx+=1
+            self.canvas.add(result_img)
+            if text != "" and text != None:
+                self.lb_status.insert(1.0, '\n')
+                self.lb_status.insert(1.0, text)
+                self.lb_status.update_idletasks()
+            # print(text)
+            # self.window.update_idletasks()  #快速重画屏幕  
+            self.window.update()
+            print("-----draw over")
 if __name__ == '__main__':
     client_accept = ClientAccept()
     
