@@ -27,15 +27,15 @@ class  ICanvas(tk.Frame):
             img = Image.fromarray(img.astype(np.uint8))
         self.img = img
         self.img_w, self.img_h = img.size
-        if self.first_add:
-            self.scale = self.canvas_h / self.img_h
-            self.first_add = False
+        # if self.first_add:
+        #     self.scale = self.canvas_h / self.img_h
+        #     self.first_add = False
         self.draw(self.canvas_w // 2, self.canvas_h // 2)
 
     def draw(self, x, y):
         # self.canvas.delete('all')
-        img = self.img.resize((int(self.img_w * self.scale), int(self.img_h * self.scale)))
-        img_tk = ImageTk.PhotoImage(image = img)
+        # img = self.img.resize((int(self.img_w * self.scale), int(self.img_h * self.scale)))
+        img_tk = ImageTk.PhotoImage(image = self.img)
         self.canvas.img_tk = img_tk
         self.canvas.create_image([x, y], image = img_tk)
 

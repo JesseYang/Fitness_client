@@ -34,7 +34,7 @@ from cfgs.config import cfg
 from actions import *
 
 class ClientAccept:
-    def __init__(self, host='192.168.1.124', port=8117 ,client_host='192.168.1.108', client_port=8120, video_file=None):
+    def __init__(self, host='192.168.1.124', port=8117 ,client_host='192.168.1.108', client_port=8121, video_file=None):
         print(os.getpid())
         self.host = host
         self.port= port
@@ -84,16 +84,19 @@ class ClientAccept:
         client_thread.start()
         # result_thread.start()
 
+        self.receive_data()
+
     def socket_client(self):
 
-        client_server = threading.Thread(target=self.receive_data)
-        client_server.start()
+        # client_server = threading.Thread(target=self.receive_data)
+        # client_server.start()
 
     
         self.__init_gui()
         
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.window.mainloop()
+
        
 
     def receive_data(self):
@@ -114,6 +117,7 @@ class ClientAccept:
         idx = 0
         print(os.getpid())
         while True:
+            show_time = time.time()
             buf = b""
             while True:
                 tem_buf = conn.recv(self.bufsize)
@@ -122,24 +126,27 @@ class ClientAccept:
                     break
      
             img_id, result_peak = pickle.loads(buf)
+            print("receive result time ", str(time.time() - show_time))
             # self.result_queue.put([img_id, result_peak[0]])
             if img_id == -1:
                 # self.result_queue.put([addr, -1, 0])
                 conn.close()
                 break
+            print(self.img_dic[img_id][1])
             print("============client server recevied data from server frame_id:%d  pid:%d" % (img_id, os.getpid()))
-            tips, text, result_img = self.action.push_new_frame(result_peak[0], cv2.resize(self.img_dic[img_id], (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_CUBIC))
+            tips, text, result_img = self.action.push_new_frame(result_peak[0], cv2.resize(self.img_dic[img_id][0], (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_CUBIC))
 
             if self.audio_thread.qsize() == 0 and self.audio_thread.is_playing == False:
                 for tip in tips:
                     self.audio_thread.put(tip)
 
             result_img = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
-            print("----------", result_img.shape)
-            
+            # print("----------", result_img.shape)
+            draw_time = time.time()
             idx+=1
             self.canvas.add(result_img)
-            cv2.imwrite(os.path.join("test",str(idx)+"_"+str(img_id)+".jpg"), result_img)
+            add_time = time.time()
+            # cv2.imwrite(os.path.join("test",str(idx)+"_"+str(img_id)+".jpg"), result_img)
             if text != "" and text != None:
                 self.lb_status.insert(1.0, '\n')
                 self.lb_status.insert(1.0, text)
@@ -147,7 +154,11 @@ class ClientAccept:
             # print(text)
             # self.window.update_idletasks()  #快速重画屏幕  
             self.window.update()
-            print("-----draw over")
+
+            print("show time ", str(time.time() - show_time), str(draw_time - show_time), str(add_time-draw_time), str(str(time.time()-add_time)))
+            # print("-----draw over")
+            end_time=time.time()
+            print("********************** %d, time: %s, %s , %s " % (img_id, str(end_time-self.img_dic[img_id][1]), str(end_time), str(self.img_dic[img_id][1])))
         print("Client connection interrupted: {0}".format(addr))
         conn.close()
         self.s.close()
@@ -191,14 +202,17 @@ class ClientAccept:
             print("open video failed")
             return
 
+
         while (True if from_camera == True else cap.isOpened()):
-           
+            start_time = time.time()
             ret, frame = cap.read()
+           
+            # time.sleep(0.05)
             if not ret:
                 print("over")
                 self.server.send(struct.pack("l99434s", int(-1), b''))
                 break
-  
+            
             scale = 0.8
 
             y_start = int((480 - 480 * scale) / 2)
@@ -212,7 +226,7 @@ class ClientAccept:
                 frame = cv2.transpose(frame)
                 frame = cv2.flip(frame, 1)
         
-            self.img_dic[frame_idx] = frame
+            # self.img_dic[frame_idx] = frame
             img_encode = cv2.imencode('.jpg', frame)[1]
             img_code = np.array(img_encode)
             str_encode = img_code.tostring()
@@ -221,8 +235,9 @@ class ClientAccept:
             data2 = struct.pack(struc_2, len(str_encode), int(frame_idx), str_encode)
 
             self.server.send(data2)
-
-            print("%s frame send over! pid: %d" % (frame_idx, os.getpid()))
+            self.img_dic[frame_idx] = (frame, start_time)
+            print("send time ", str(time.time()-start_time))
+            print("%s frame send over! pid: %d, %s" % (frame_idx, os.getpid(), str(start_time)))
             if frame_idx >= 1e+6:
                 frame_idx = 0
             frame_idx +=1
@@ -230,34 +245,6 @@ class ClientAccept:
         # cv2.destroyAllWindows()
 
 
-
-    def show_img(self):
-        idx = 0
-        while 1:
-            print("show img----")
-            img_id, result_peak = self.result_queue.get()
-            print(img_id)
-            if img_id  == -1:
-                break
-            tips, text, result_img = self.action.push_new_frame(result_peak, cv2.resize(self.img_dic[img_id], (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_CUBIC))
-
-            if self.audio_thread.qsize() == 0 and self.audio_thread.is_playing == False:
-                for tip in tips:
-                    self.audio_thread.put(tip)
-
-            result_img = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
-            print("----------", result_img.shape)
-            cv2.imwrite(os.path.join("test",str(idx)+"_"+str(img_id)+".jpg"), result_img)
-            idx+=1
-            self.canvas.add(result_img)
-            if text != "" and text != None:
-                self.lb_status.insert(1.0, '\n')
-                self.lb_status.insert(1.0, text)
-                self.lb_status.update_idletasks()
-            # print(text)
-            # self.window.update_idletasks()  #快速重画屏幕  
-            self.window.update()
-            print("-----draw over")
 if __name__ == '__main__':
     client_accept = ClientAccept()
     
