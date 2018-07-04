@@ -57,9 +57,21 @@ class ClientAccept:
         self.window = tk.Tk()
         self.window.wm_title('VideoText')
         self.window.config(background = '#FFFFFF')
+        # self.btn=tk.Button(self.window,text='aa',command=self._start)
+        # self.btn.pack(side="bottom", fill="both", expand="yes", padx=10,pady=10)
 
-        self.canvas = ICanvas(self.window, width = cfg.output_width, height = cfg.output_height)
-        self.canvas.grid(row = 0, column = 0)
+
+        self.panel = tk.Label(self.window)
+        self.panel.grid(row = 0, column = 0)
+        self.panel.image = None
+        # self.panel.pack(side="bottom", fill="both",expand="yes")
+        # self.panel.width=cfg.output_width
+        # self.panel.height=cfg.output_height
+        
+
+    
+        # self.canvas = ICanvas(self.window, width = cfg.output_width, height = cfg.output_height)
+        # self.canvas.grid(row = 0, column = 0)
 
         self.fm_control = tk.Frame(self.window, width=cfg.output_width, height=20, background = 'white')
         self.fm_control.grid(row = 1, column=0, sticky=tk.W, padx=2, pady=5)
@@ -68,7 +80,7 @@ class ClientAccept:
         self.lb_status.grid(row = 0, column=2, padx=10, pady=5)
         # self.lb_status.insert(1.0,"因为你在我心中是那么的具体") 
         
-        self.fm_status = tk.Frame(self.window, width = 100, height = 100, background = '#FFFFFF')
+        self.fm_status = tk.Frame(self.window, width = 100, height = cfg.output_height, background = '#FFFFFF')
         self.fm_status.grid(row = 0, column=1, padx=0, pady=2)
   
         self.btn_prev_frame1 = tk.Button(self.fm_status, text='Start', command = self._start)
@@ -84,7 +96,9 @@ class ClientAccept:
         client_thread.start()
         # result_thread.start()
 
-        self.receive_data()
+        # self.receive_data()
+        client_thread1 = threading.Thread(target=self.receive_data)
+        client_thread1.start()
         print("over")
 
     def socket_client(self):
@@ -119,47 +133,38 @@ class ClientAccept:
         dis_time = time.time()
         print(os.getpid())
        
-        last_img_id = -1
         next_buf = b""
         while True:
-           
             show_time = time.time()
-            buf = next_buf
-            data_len = -1
-            
-            while True:
-                if len(buf) > 4 and data_len == -1: 
-                    img_size = struct.unpack('i', buf[:4])
-                    data_len = img_size[0] + 8
+            # buf = next_buf
+            # data_len = -1
+            # while True:
+            #     if len(buf) > 4 and data_len == -1: 
+            #         img_size = struct.unpack('i', buf[:4])
+            #         data_len = img_size[0] + 8
+            #     if data_len != -1 and data_len <= len(buf):
+            #         break
+            #     tem_buf = conn.recv(self.bufsize)
+            #     buf += tem_buf
+            # next_buf = buf[data_len:]
+            # buf = buf[:data_len]
+            # img_info = struct.unpack("ii%ds" % (data_len - 8), buf)
+            # img_id=img_info[1]
+            # data = np.fromstring(img_info[2], dtype='uint8')
+            # img = cv2.imdecode(data, 1)
+            # text = "aa"
+            # print("receive result time ", str(time.time() - show_time))
 
-                if data_len != -1 and data_len <= len(buf):
-                    break
-
-                # print("aaa")
+            buf = b""
+            while 1:
                 tem_buf = conn.recv(self.bufsize)
                 buf += tem_buf
-                # print("buf size: %d; temp buf: %d; data len: %d" % (len(buf), len(tem_buf), data_len))
-                # print("buf size", len(buf), len(tem_buf), data_len)
-                # print(len(buf))
-
-
-
-            next_buf = buf[data_len:]
-            buf = buf[:data_len]
-            # pdb.set_trace()
-            # print("size", data_len)
-            img_info = struct.unpack("ii%ds" % (data_len - 8), buf)
-            img_id=img_info[1]
-            print(img_id)
-            if last_img_id != -1 and img_id - last_img_id != 1:
-                print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-            last_img_id = img_id
-
-            a=img_id
-            data = np.fromstring(img_info[2], dtype='uint8')
-            img = cv2.imdecode(data, 1)
-            text = "aa"
-            # print("receive result time ", str(time.time() - show_time))
+                print(len(buf), len(tem_buf))
+                if len(tem_buf) != self.bufsize :
+                    break
+                
+            tips = pickle.loads(buf)
+            print("received tips %s" % (tips))
             show_start_time = time.time()
             # self.result_queue.put([img_id, result_peak[0]])
             # if img_id == -1:
@@ -167,31 +172,42 @@ class ClientAccept:
             #     conn.close()
             #     break
             # print("network network tiem:" , img_id, str(time.time()-server_time), str(server_time))
-            print("============client server recevied data from server frame_id:%d  pid:%d" % (img_id, os.getpid()))
+            # print("============client server recevied data from server frame_id:%d  pid:%d" % (img_id, os.getpid()))
             # tips, text, result_img = self.action.push_new_frame(result_peak[0], cv2.resize(self.img_dic[img_id][0], (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_CUBIC))
 
             # if self.audio_thread.qsize() == 0 and self.audio_thread.is_playing == False:
-            #     for tip in tips:
-            #         self.audio_thread.put(tip)
+            #     for tip in [tips]:
+            tip = tips.split("-")
+
+            for e in tip:
+                self.audio_thread.put(e)
 
             # result_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            result_img = cv2.resize(img, (600,600))
+
+            # result_img = cv2.resize(img, (cfg.output_width,cfg.output_height))
+            # # image = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
+            # image = Image.fromarray(self.)
+            # image = ImageTk.PhotoImage(image)
+      
+            # self.panel.configure(image=image)
+            # self.panel.image = image
+            # draw_time = time.time()
             # print("----------", result_img.shape)
-            draw_time = time.time()
+            
             idx+=1
-            self.canvas.add(result_img)
+
+            # self.canvas.add(result_img)
             add_time = time.time()
-            # cv2.imwrite(os.path.join("test",str(idx)+"_"+str(img_id)+".jpg"), result_img)
-            if text != "" and text != None:
-                self.lb_status.insert(1.0, '\n')
-                self.lb_status.insert(1.0, text)
-                self.lb_status.update_idletasks()
+            # if text != "" and text != None:
+            #     self.lb_status.insert(1.0, '\n')
+            #     self.lb_status.insert(1.0, text)
+            #     self.lb_status.update_idletasks()
             # print(text)
-            self.window.update_idletasks()  #快速重画屏幕  
-            self.window.update()
+            # self.window.update_idletasks()  #快速重画屏幕  
+            # self.window.update()
             end_time=time.time()
             
-            # print("show time ", str(time.time() - show_start_time), str(draw_time - show_start_time), str(add_time-draw_time), str(str(time.time()-add_time)))
+            # print("show time ", img_id, str(end_time - show_start_time), str(draw_time - show_start_time), str(end_time-add_time))
             # print("-----draw over")
 
             # print("********************** %d, time: %s, %s , %s " % (img_id, str(end_time-self.img_dic[img_id][1]), str(end_time), str(self.img_dic[img_id][1])))
@@ -272,14 +288,26 @@ class ClientAccept:
             img_encode = cv2.imencode('.jpg', frame)[1]
             img_code = np.array(img_encode)
             str_encode = img_code.tostring()
-         
+
+
             struc_2 = "iid%ds" % len(str_encode)
             data2 = struct.pack(struc_2, len(str_encode), int(frame_idx), float(start_time), str_encode)
 
             self.server.send(data2)
             # self.img_dic[frame_idx] = (frame, start_time)
             # print("send time ", str(time.time()-start_time))
-            # print("%s frame send over! pid: %d, %s" % (frame_idx, os.getpid(), str(start_time)))
+
+
+            result_img = cv2.resize(frame, (cfg.output_width,cfg.output_height))
+            result_img = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
+            image = Image.fromarray(result_img)
+          
+            image = ImageTk.PhotoImage(image)
+           
+            self.panel.configure(image=image)
+            self.panel.image = image
+            # self.window.update()
+            print("%s frame send over! pid: %d, %s" % (frame_idx, os.getpid(), str(start_time)))
             if frame_idx >= 1e+6:
                 frame_idx = 0
          
