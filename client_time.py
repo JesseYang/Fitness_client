@@ -55,14 +55,16 @@ class ClientAccept:
     def __init_gui(self):
 
         self.window = tk.Tk()
+        self.w, self.h = self.window.maxsize()
+        self.window.attributes("-fullscreen", True)
         self.window.wm_title('VideoText')
         self.window.config(background = '#FFFFFF')
         # self.btn=tk.Button(self.window,text='aa',command=self._start)
         # self.btn.pack(side="bottom", fill="both", expand="yes", padx=10,pady=10)
 
 
-        self.panel = tk.Label(self.window)
-        self.panel.grid(row = 0, column = 0)
+        self.panel = tk.Label(self.window,width = self.w, height = self.h)
+        self.panel.grid(row = 0, column = 0, padx=10, pady=10)
         self.panel.image = None
         # self.panel.pack(side="bottom", fill="both",expand="yes")
         # self.panel.width=cfg.output_width
@@ -73,22 +75,23 @@ class ClientAccept:
         # self.canvas = ICanvas(self.window, width = cfg.output_width, height = cfg.output_height)
         # self.canvas.grid(row = 0, column = 0)
 
-        self.fm_control = tk.Frame(self.window, width=cfg.output_width, height=20, background = 'white')
-        self.fm_control.grid(row = 1, column=0, sticky=tk.W, padx=2, pady=5)
+        # self.fm_control = tk.Frame(self.window, width=cfg.output_width, height=20, background = 'white')
+        # self.fm_control.grid(row = 1, column=0, sticky=tk.W, padx=2, pady=5)
 
-        self.lb_status = tk.Text(self.fm_control, height=18,  background = 'white')
-        self.lb_status.grid(row = 0, column=2, padx=10, pady=5)
-        # self.lb_status.insert(1.0,"因为你在我心中是那么的具体") 
+        # self.lb_status = tk.Text(self.fm_control, height=18,  background = 'white')
+        # self.lb_status.grid(row = 0, column=2, padx=10, pady=5)
+        # # self.lb_status.insert(1.0,"因为你在我心中是那么的具体") 
         
-        self.fm_status = tk.Frame(self.window, width = 100, height = cfg.output_height, background = '#FFFFFF')
-        self.fm_status.grid(row = 0, column=1, padx=0, pady=2)
+        # self.fm_status = tk.Frame(self.window, width = 100, height = cfg.output_height, background = '#FFFFFF')
+        # self.fm_status.grid(row = 0, column=1, padx=0, pady=2)
   
-        self.btn_prev_frame1 = tk.Button(self.fm_status, text='Start', command = self._start)
-        self.btn_prev_frame1.grid(row = 0, column=0, padx=10, pady=2)
+        # self.btn_prev_frame1 = tk.Button(self.fm_status, text='Start', command = self._start)
+        # self.btn_prev_frame1.grid(row = 0, column=0, padx=10, pady=2)
         
-        self.btn_next_frame3 = tk.Button(self.fm_status, text='New', command = None)
-        self.btn_next_frame3.grid(row = 1, column=0, padx=10, pady=20)
-        self.window.resizable(False, False)
+        # self.btn_next_frame3 = tk.Button(self.fm_status, text='New', command = None)
+        # self.btn_next_frame3.grid(row = 1, column=0, padx=10, pady=20)
+        # self.window.resizable(False, False)
+        self._start()
        
     def _start(self):
 
@@ -159,10 +162,11 @@ class ClientAccept:
             while 1:
                 tem_buf = conn.recv(self.bufsize)
                 buf += tem_buf
-                print(len(buf), len(tem_buf))
-                if len(tem_buf) != self.bufsize :
+               
+                if len(tem_buf) != self.bufsize:
                     break
-                
+            if len(buf) == 0:
+                break 
             tips = pickle.loads(buf)
             print("received tips %s" % (tips))
             show_start_time = time.time()
@@ -266,17 +270,19 @@ class ClientAccept:
             ret, frame = cap.read()
            
             # time.sleep(0.05)
-            if not ret:
-                print("over")
-                self.server.send(struct.pack("l99434s", int(-1), b''))
+            if  not ret:
+                str_encode=b"over"
+                struc_2 = "iid%ds" % len(str_encode)
+                data2 = struct.pack(struc_2, len(str_encode), int(-1), float(start_time), str_encode)
+                self.server.send(data2)
                 break
             
-            scale = 0.8
+            # scale = 0.8
 
-            y_start = int((480 - 480 * scale) / 2)
-            y_end = int((480 - 480 * scale) / 2 + 480 * scale)
+            # y_start = int((480 - 480 * scale) / 2)
+            # y_end = int((480 - 480 * scale) / 2 + 480 * scale)
 
-            x_start = int(640 - 640 * scale)
+            # x_start = int(640 - 640 * scale)
            
             # frame = frame[y_start:y_end, x_start:]
 
@@ -284,21 +290,16 @@ class ClientAccept:
                 frame = cv2.transpose(frame)
                 frame = cv2.flip(frame, 1)
         
-            # self.img_dic[frame_idx] = frame
+ 
             img_encode = cv2.imencode('.jpg', frame)[1]
             img_code = np.array(img_encode)
             str_encode = img_code.tostring()
-
-
             struc_2 = "iid%ds" % len(str_encode)
             data2 = struct.pack(struc_2, len(str_encode), int(frame_idx), float(start_time), str_encode)
-
             self.server.send(data2)
-            # self.img_dic[frame_idx] = (frame, start_time)
-            # print("send time ", str(time.time()-start_time))
+       
 
-
-            result_img = cv2.resize(frame, (cfg.output_width,cfg.output_height))
+            result_img = cv2.resize(frame, (self.w, self.h))
             result_img = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
             image = Image.fromarray(result_img)
           
