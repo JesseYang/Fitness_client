@@ -1,4 +1,5 @@
 import socket
+from math import *
 import os
 import threading
 import numpy as np
@@ -49,8 +50,8 @@ class ClientAccept:
         self.audio_thread = AudioThread()
         self.audio_thread.start()
         self.action = BackSquat()
-        self.socket_client()
-        # self.__init_gui() 
+        # self.socket_client()
+        self._start()
 
     def __init_gui(self):
 
@@ -102,16 +103,15 @@ class ClientAccept:
         # self.receive_data()
         client_thread1 = threading.Thread(target=self.receive_data)
         client_thread1.start()
-        print("over")
+        # print("over")
 
     def socket_client(self):
 
         # client_server = threading.Thread(target=self.receive_data)
         # client_server.start()
 
-    
+       
         self.__init_gui()
-        
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.window.mainloop()
 
@@ -165,9 +165,12 @@ class ClientAccept:
                
                 if len(tem_buf) != self.bufsize:
                     break
-            if len(buf) == 0:
-                break 
+            # if len(buf) == 0:
+            #     self.on_closing()
+            #     # break 
             tips = pickle.loads(buf)
+            if tips == -1:
+                self.on_closing()
             print("received tips %s" % (tips))
             show_start_time = time.time()
             # self.result_queue.put([img_id, result_peak[0]])
@@ -228,7 +231,7 @@ class ClientAccept:
 
     def on_closing(self):
         self.server.close()
-        self.window.destroy()
+        # self.window.destroy()
         # sys.exit()
         quit()
 
@@ -256,12 +259,13 @@ class ClientAccept:
         print("pid",os.getpid())
         # print(video_file)
         from_camera = video_file == None
-        print(cfg.cam_idx)
+        # print(cfg.cam_idx)
         cap = cv2.VideoCapture(cfg.cam_idx) if from_camera else cv2.VideoCapture(video_file)
-        # frame = self.capture_run(cap, from_camera)
+        # # frame = self.capture_run(cap, from_camera)
         frame_idx = 0
         if not cap.isOpened():
             print("open video failed")
+            self.on_closing()
             return
 
 
@@ -269,7 +273,6 @@ class ClientAccept:
             start_time = time.time()
             ret, frame = cap.read()
            
-            # time.sleep(0.05)
             if  not ret:
                 str_encode=b"over"
                 struc_2 = "iid%ds" % len(str_encode)
@@ -285,12 +288,13 @@ class ClientAccept:
             # x_start = int(640 - 640 * scale)
            
             # frame = frame[y_start:y_end, x_start:]
-
-            if from_camera:
-                frame = cv2.transpose(frame)
-                frame = cv2.flip(frame, 1)
-        
- 
+            # cv2.imwrite(os.path.join("test", str(frame_idx)+".jpg"), frame)
+            print("frame shape ", str(frame.shape))
+            # if from_camera:
+            #     frame = cv2.transpose(frame)
+            #     frame = cv2.flip(frame, 1)
+            # print("transform frame shape ", str(frame.shape))
+            # cv2.imwrite(os.path.join("test", str(frame_idx)+"--.jpg"), frame)
             img_encode = cv2.imencode('.jpg', frame)[1]
             img_code = np.array(img_encode)
             str_encode = img_code.tostring()
@@ -299,17 +303,25 @@ class ClientAccept:
             self.server.send(data2)
        
 
-            result_img = cv2.resize(frame, (self.w, self.h))
-            result_img = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
-            image = Image.fromarray(result_img)
           
-            image = ImageTk.PhotoImage(image)
+            # print("Frame w,h", str(result_img.shape))
+            # result_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # image = Image.fromarray(result_img)
+            # image = ImageTk.PhotoImage(image)
            
-            self.panel.configure(image=image)
-            self.panel.image = image
-            # self.window.update()
-            print("%s frame send over! pid: %d, %s" % (frame_idx, os.getpid(), str(start_time)))
-            if frame_idx >= 1e+6:
+            # self.panel.configure(image=image)
+            # self.panel.image = image
+
+            # cv2.imwrite(os.path.join("test", str(frame_idx)+".jpg"), result_img)
+            # cv2.resizeWindow('frame', 200, 200)
+
+            cv2.namedWindow("frame", cv2.WND_PROP_FULLSCREEN);
+            cv2.setWindowProperty("frame", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+            cv2.imshow('frame', frame)
+            # cv2.imwrite(os.path.join("test", str(frame_idx)+"--.jpg"), np.rot90(frame))
+            cv2.waitKey(1) 
+            print("%s frame send over! pid: %d, %s" % (frame_idx, os.getpid(), str(time.time()-start_time)))
+            if frame_idx >= 1e+4:
                 frame_idx = 0
          
             frame_idx +=1
